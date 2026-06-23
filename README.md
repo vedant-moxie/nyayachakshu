@@ -84,6 +84,41 @@ Three independent ways for anyone to confirm the system actually does what it cl
    suite on every push, across Python 3.11–3.13. Green = independently reproduced
    on GitHub's runners, not just on our machine.
 
+## Detect violations from a real image (real YOLO inference)
+
+Upload an actual traffic photo and the backend runs **real YOLOv8m object
+detection** (ultralytics, COCO-pretrained) — genuine inference, not simulation.
+It returns the detected objects, an annotated image, and the violations that
+object-detection can *honestly* support.
+
+```bash
+cd backend
+python3.11 -m venv .venv311          # torch has no Python 3.14 wheels yet
+source .venv311/bin/activate
+pip install -r requirements-detect.txt
+uvicorn app.main:app --port 8100     # serves the API *and* the pages
+```
+
+Open **<http://localhost:8100/detect.html>**, drop in an image, and watch it
+detect. On `triple_riding.jpeg` it really fires:
+
+```
+violations: triple_riding @ 0.71  ("3 persons associated with one two-wheeler")
+challan:    ₹1000  (MV Act §194C)
+```
+
+**What is and isn't real here — no faking:**
+- ✅ **Real:** vehicle/person/motorcycle/traffic-light detection, and
+  **triple-riding** derived by associating ≥3 riders to one two-wheeler.
+- ⚠️ **Honestly out of scope for COCO:** helmet-absence and seatbelt/phone are
+  *not* COCO classes — the endpoint reports them as "requires the fine-tuned
+  multi-task head" (perception.tex / seatbelt.tex) rather than inventing a
+  result. Riders are detected; helmet state is not classified.
+
+This runs locally (torch is ~2 GB and won't fit the free serverless tier). On
+the deployed site `/api/detect` returns a clear `503` telling you to run the
+local service; the `/detect` page lets you point its API base at `localhost:8100`.
+
 ## Run the backend
 
 ```bash

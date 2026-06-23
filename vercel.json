@@ -9,6 +9,7 @@
     { "source": "/docs", "destination": "/api/index" },
     { "source": "/openapi.json", "destination": "/api/index" },
     { "source": "/proof", "destination": "/frontend/proof.html" },
+    { "source": "/detect", "destination": "/frontend/detect.html" },
     { "source": "/", "destination": "/frontend/index.html" }
   ]
 }

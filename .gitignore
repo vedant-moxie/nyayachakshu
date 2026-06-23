@@ -1,6 +1,11 @@
 # Python
 .venv/
+.venv311/
 venv/
+
+# ML model weights (auto-downloaded by ultralytics on first run)
+*.pt
+backend/annotated_*.jpg
 __pycache__/
 *.pyc
 .pytest_cache/

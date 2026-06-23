@@ -17,7 +17,7 @@ the report's tools as callable services:
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__, proof, seed
@@ -168,6 +168,54 @@ def ledger_verify(camera_id: str | None = None) -> dict:
     return store.ledger.verify(camera_id)
 
 
+@app.post("/api/detect")
+async def detect_violations(file: UploadFile = File(...)) -> dict:
+    """Run REAL YOLO inference on an uploaded image and derive violations.
+
+    Genuine object detection (ultralytics YOLOv8, COCO). Returns the detected
+    objects, the violations the model can honestly support (e.g. triple-riding
+    via rider association), an annotated image, and — when a violation fires —
+    a challan preview from the penalty engine. Available only where the
+    detection stack is installed (the local Python 3.11 service).
+    """
+    from . import detector
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "empty upload")
+    try:
+        result = detector.detect(data)
+    except detector.DetectorUnavailable as e:
+        raise HTTPException(503, str(e))
+    except Exception as e:
+        raise HTTPException(422, f"could not process image: {e}")
+
+    # If a real violation fired, build a challan preview off the penalty engine.
+    from . import penalties
+    offences = []
+    for v in result["violations"]:
+        riders = v.get("evidence", {}).get("riders_detected", 1)
+        offences.append({
+            "offence": v["code"], "section": penalties.section_for(v["code"]),
+            "code": v["code"], "ai_confidence": v["confidence"],
+            "fine": penalties.fine_for(v["code"], riders)})
+    result["challan_preview"] = {
+        "offences": offences,
+        "total_payable_inr": penalties.challan_total(offences),
+    } if offences else None
+    return result
+
+
+@app.get("/api/detect/status")
+def detect_status() -> dict:
+    """Report whether the real-detection model is available in this runtime."""
+    from . import detector
+    try:
+        detector._model()
+        return {"available": True, "model": f"{detector._MODEL_NAME} (COCO)"}
+    except detector.DetectorUnavailable as e:
+        return {"available": False, "reason": str(e)}
+
+
 @app.get("/api/proof")
 def run_proof() -> dict:
     """Live self-verification — runs real checks and returns checkable evidence.
@@ -202,3 +250,17 @@ def pipeline_run() -> dict:
         "no_park_zone_ids": [], "plate": "AP 37 BK 6798", "plate_conf": 0.94,
     }
     return run_scene(frames, scene, camera_id="CAM-07A")
+
+
+# --- Local convenience: serve the static console + pages from the same origin.
+# A single `uvicorn` command then gives you the full app (console at /,
+# /detect.html, /proof.html) AND the API at one URL. On Vercel the static files
+# are served by the platform (rewrites) and this directory isn't bundled, so the
+# mount is simply skipped there.
+import os as _os  # noqa: E402
+
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+_FRONTEND = _os.path.join(_os.path.dirname(__file__), "..", "..", "frontend")
+if _os.path.isdir(_FRONTEND):
+    app.mount("/", StaticFiles(directory=_FRONTEND, html=True), name="frontend")

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NyayaChakshu · Detect Violations from an Image</title>
+<style>
+  :root{--bg:#0a0b1e;--card:#12142e;--line:#23264f;--ink:#e7e9ff;--mut:#8b90c0;
+        --red:#FF4D6D;--amber:#F6A609;--cyan:#2FD3C3;--green:#35D199;--violet:#7B6CFF}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#191c3f,#0a0b1e);
+       color:var(--ink);font:15px/1.55 ui-monospace,Menlo,monospace;padding:30px 18px}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font:600 22px/1.3 system-ui;margin:0 0 4px}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:20px}
+  .sub b{color:var(--cyan)}
+  .drop{border:2px dashed var(--line);border-radius:16px;padding:34px;text-align:center;
+        background:var(--card);cursor:pointer;transition:.15s}
+  .drop.hover{border-color:var(--violet);background:#171a3a}
+  .drop input{display:none}
+  .btn{background:var(--violet);color:#fff;border:0;border-radius:10px;padding:10px 18px;
+       font:600 14px system-ui;cursor:pointer;margin-top:10px}
+  .status{margin:16px 0;color:var(--mut);font-size:13px;min-height:20px}
+  .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-top:14px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .panel h3{font:600 14px system-ui;margin:0 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+  img.shot{width:100%;border-radius:10px;display:block}
+  .v{border-left:4px solid var(--red);background:#1a0e1c;border-radius:8px;padding:10px 12px;margin-bottom:8px}
+  .v .vt{font:600 15px system-ui;color:var(--red)}
+  .v .vd{color:var(--mut);font-size:12.5px;margin-top:3px}
+  .chip{display:inline-block;background:#0a0b1e;border:1px solid var(--line);border-radius:999px;
+        padding:3px 10px;font-size:12px;margin:3px 4px 0 0}
+  .kv{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0;font-size:13px}
+  .kv:last-child{border:0} .kv b{color:var(--cyan);font-weight:600}
+  .none{color:var(--green)}
+  .warn{background:#1c170a;border-left:4px solid var(--amber);border-radius:8px;padding:10px 12px;
+        margin-top:8px;font-size:12.5px;color:#d8c9a0}
+  .total{font:700 22px system-ui;color:var(--amber);margin-top:8px}
+  a{color:var(--cyan)} .links{margin-top:18px;font-size:13px;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Detect Violations from an Image</h1>
+  <div class="sub">Upload a real traffic photo. The backend runs <b>real YOLOv8 inference</b>
+    (no simulation) and derives the violations object-detection can honestly support.
+    Helmet/seatbelt need a fine-tuned model and are reported as such — not faked.</div>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="image/*">
+    <div style="font:600 16px system-ui">Drop an image here or click to choose</div>
+    <div style="color:var(--mut);font-size:12.5px;margin-top:6px">JPEG / PNG / WEBP · processed on the server with YOLOv8m</div>
+    <button class="btn" type="button" id="pick">Choose image</button>
+  </label>
+  <div class="status" id="status"></div>
+
+  <div class="grid" id="result" hidden>
+    <div class="panel">
+      <h3>Annotated detection</h3>
+      <img class="shot" id="shot" alt="annotated">
+    </div>
+    <div>
+      <div class="panel" style="margin-bottom:14px">
+        <h3>Violations</h3>
+        <div id="viols"></div>
+        <div id="challan"></div>
+      </div>
+      <div class="panel">
+        <h3>What the model detected</h3>
+        <div id="objs"></div>
+        <div id="unsup"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="links">
+    API base: <input id="api" value="" placeholder="(same origin)" style="background:#0a0b1e;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:inherit;width:230px">
+    · <a href="/proof">/proof</a> · <a href="/docs">/docs</a> · <a href="/">console</a>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const base=()=>$("#api").value.trim().replace(/\/$/,"");
+$("#pick").addEventListener("click",e=>{e.preventDefault();$("#file").click();});
+const drop=$("#drop");
+["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("hover");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("hover");}));
+drop.addEventListener("drop",e=>{const f=e.dataTransfer.files[0]; if(f) send(f);});
+$("#file").addEventListener("change",e=>{const f=e.target.files[0]; if(f) send(f);});
+
+async function send(file){
+  $("#status").textContent="Running YOLOv8 inference on the server…";
+  $("#result").hidden=true;
+  const fd=new FormData(); fd.append("file",file);
+  let d;
+  try{ const res=await fetch(base()+"/api/detect",{method:"POST",body:fd});
+       if(!res.ok){ $("#status").textContent="Error "+res.status+": "+(await res.text()); return; }
+       d=await res.json(); }
+  catch(e){ $("#status").textContent="Could not reach the detection API ("+e+"). Is the local 3.11 service running?"; return; }
+  render(d);
+}
+
+function render(d){
+  $("#status").textContent="Detected "+d.supported.objects_detected+" objects · model: "+d.model;
+  $("#shot").src=d.annotated_image_b64;
+  const v=$("#viols");
+  if(d.violations.length){
+    v.innerHTML=d.violations.map(x=>`<div class="v"><div class="vt">⚠ ${x.code.replace(/_/g,' ').toUpperCase()} · ${(x.confidence*100|0)}%</div><div class="vd">${x.basis}</div></div>`).join("");
+  } else { v.innerHTML='<div class="none">No model-supported violation detected in this frame.</div>'; }
+  const ch=$("#challan");
+  if(d.challan_preview){
+    ch.innerHTML=d.challan_preview.offences.map(o=>`<div class="kv"><span>${o.offence} · ${o.section}</span><b>₹${o.fine.toLocaleString('en-IN')}</b></div>`).join("")
+      +`<div class="total">Total payable ₹${d.challan_preview.total_payable_inr.toLocaleString('en-IN')}</div>`;
+  } else ch.innerHTML="";
+  const s=d.supported;
+  $("#objs").innerHTML=`<div class="kv"><span>Persons</span><b>${s.persons}</b></div>
+    <div class="kv"><span>Two-wheelers</span><b>${s.two_wheelers}</b></div>
+    <div class="kv"><span>Cars / buses / trucks</span><b>${s.cars_buses_trucks}</b></div>
+    <div class="kv"><span>Traffic lights</span><b>${s.traffic_lights}</b></div>
+    <div class="kv"><span>Max riders on one two-wheeler</span><b>${s.max_riders_on_a_two_wheeler}</b></div>`;
+  $("#unsup").innerHTML=(d.unsupported||[]).map(u=>`<div class="warn"><b>${u.violation}</b> — ${u.reason}</div>`).join("");
+  $("#result").hidden=false;
+}
+</script>
+</body>
+</html>
