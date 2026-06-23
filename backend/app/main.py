@@ -20,7 +20,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import __version__, seed
+from . import __version__, proof, seed
 from .pipelines import run_scene
 from .schemas import AlprRequest
 from .store import store
@@ -166,6 +166,16 @@ def ledger(camera_id: str | None = None) -> dict:
 @app.get("/api/ledger/verify")
 def ledger_verify(camera_id: str | None = None) -> dict:
     return store.ledger.verify(camera_id)
+
+
+@app.get("/api/proof")
+def run_proof() -> dict:
+    """Live self-verification — runs real checks and returns checkable evidence.
+
+    Each check shows expected vs actual; the hash-chain check prints the exact
+    bytes so a sceptic can recompute the SHA-256 independently.
+    """
+    return proof.run_all()
 
 
 @app.get("/api/pipeline/run")

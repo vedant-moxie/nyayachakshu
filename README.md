@@ -1,5 +1,11 @@
 # NyayaChakshu — AI Traffic-Violation Enforcement Platform
 
+[![CI](https://github.com/vedant-moxie/nyayachakshu/actions/workflows/ci.yml/badge.svg)](https://github.com/vedant-moxie/nyayachakshu/actions/workflows/ci.yml)
+
+**Live:** [nyayachakshu-console.vercel.app](https://nyayachakshu-console.vercel.app) ·
+**Verify it works:** [/proof](https://nyayachakshu-console.vercel.app/proof) ·
+**API docs:** [/docs](https://nyayachakshu-console.vercel.app/docs)
+
 An end-to-end command centre for automated traffic-violation enforcement on
 Indian roads: a live perception stack detects violations from camera feeds,
 resolves number plates, books offences against the Motor Vehicles Act, seals
@@ -50,6 +56,33 @@ super-resolution) are **simulated deterministically** so the whole stack runs
 with no GPU, no model weights, and stdlib only — but the downstream logic
 (tracking, kinematics, routing, voting, geometry rules, hashing, penalties) is
 the real production logic.
+
+## Verify it works (don't take our word for it)
+
+Three independent ways for anyone to confirm the system actually does what it claims:
+
+1. **Open the live proof page** → <https://nyayachakshu-console.vercel.app/proof>
+   It runs five real checks in your browser against the live server and shows
+   pass/fail with the expected-vs-actual values for each.
+
+2. **Recompute a cryptographic hash by hand.** Hit
+   [`/api/proof`](https://nyayachakshu-console.vercel.app/api/proof) — the
+   hash-chain check prints the exact bytes that were hashed. Paste them into
+   `shasum` and confirm you get the same digest the server reports:
+   ```bash
+   printf '%s' '<canonical bytes from /api/proof>' | shasum -a 256
+   ```
+   It will match the sealed `record_hash` — proving the evidence ledger is real
+   SHA-256, not a stored string.
+
+3. **Watch tamper-detection catch a forged record.**
+   [`/api/ledger/verify`](https://nyayachakshu-console.vercel.app/api/ledger/verify)
+   recomputes every link in the chain; the `/api/proof` tamper check edits a
+   sealed record and shows `verify()` flagging the break.
+
+4. **The CI badge above** runs all 49 pipeline tests **plus** the self-verification
+   suite on every push, across Python 3.11–3.13. Green = independently reproduced
+   on GitHub's runners, not just on our machine.
 
 ## Run the backend
 

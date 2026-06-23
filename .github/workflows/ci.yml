@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt pytest
+
+      - name: Run pipeline tests (perception · ALPR · violations)
+        working-directory: backend
+        run: pytest tests/ -v
+
+      - name: Live self-verification suite (tamper / ALPR / penalty proofs)
+        working-directory: backend
+        run: |
+          python -c "from app import proof; r=proof.run_all(); \
+            [print(('PASS' if c['pass'] else 'FAIL'), c['name']) for c in r['checks']]; \
+            assert r['all_passed'], 'self-verification failed'; \
+            print(f\"\\n{r['passed']}/{r['total']} checks passed\")"

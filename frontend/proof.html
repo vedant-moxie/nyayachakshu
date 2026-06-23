@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NyayaChakshu · Live Self-Verification</title>
+<style>
+  :root{--bg:#0a0b1e;--card:#12142e;--line:#23264f;--ink:#e7e9ff;--mut:#8b90c0;
+        --red:#FF4D6D;--amber:#F6A609;--cyan:#2FD3C3;--green:#35D199;--violet:#7B6CFF}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#191c3f,#0a0b1e);
+       color:var(--ink);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:32px 18px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font:600 22px/1.3 system-ui;margin:0 0 4px}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:22px}
+  .bar{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);
+       border-radius:14px;padding:16px 20px;margin-bottom:20px}
+  .score{font:700 30px system-ui}
+  .pill{padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600}
+  .ok{background:rgba(53,209,153,.16);color:var(--green)}
+  .bad{background:rgba(255,77,109,.16);color:var(--red)}
+  .run{margin-left:auto;background:var(--violet);color:#fff;border:0;border-radius:10px;
+       padding:10px 18px;font:600 14px system-ui;cursor:pointer}
+  .run:active{transform:translateY(1px)}
+  .check{background:var(--card);border:1px solid var(--line);border-left-width:4px;
+         border-radius:12px;padding:14px 18px;margin-bottom:12px}
+  .check.p{border-left-color:var(--green)} .check.f{border-left-color:var(--red)}
+  .ct{display:flex;align-items:center;gap:10px;font:600 15px system-ui}
+  .mark{font-size:18px}
+  .detail{color:var(--mut);font-size:12.5px;margin:8px 0 0;white-space:pre-wrap;word-break:break-word}
+  .kv{display:grid;grid-template-columns:90px 1fr;gap:4px 10px;margin-top:10px;font-size:12.5px}
+  .kv b{color:var(--cyan);font-weight:600}
+  pre{background:#0a0b1e;border:1px solid var(--line);border-radius:8px;padding:10px;
+      overflow:auto;font-size:12px;color:#c7cbff;margin:8px 0 0}
+  a{color:var(--cyan)}
+  .links{margin-top:18px;font-size:13px;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NyayaChakshu — Live Self-Verification</h1>
+  <div class="sub">These checks run <b>live on the server</b> right now. Nothing is pre-recorded.
+    The hash-chain check prints the exact bytes so you can recompute the SHA-256 yourself.</div>
+
+  <div class="bar">
+    <div class="score" id="score">—</div>
+    <span class="pill" id="verdict">not run</span>
+    <button class="run" id="run">Run verification ▶</button>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="links">
+    Raw JSON: <a href="/api/proof" target="_blank">/api/proof</a> ·
+    Tamper-evidence: <a href="/api/ledger/verify" target="_blank">/api/ledger/verify</a> ·
+    Full pipeline: <a href="/api/pipeline/run" target="_blank">/api/pipeline/run</a> ·
+    API docs: <a href="/docs" target="_blank">/docs</a> ·
+    Console: <a href="/">home</a>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+function esc(x){return (typeof x==="string"?x:JSON.stringify(x,null,2))
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+async function run(){
+  $("#run").disabled=true; $("#run").textContent="Running…"; $("#out").innerHTML="";
+  let d;
+  try{ d=await (await fetch("/api/proof",{cache:"no-store"})).json(); }
+  catch(e){ $("#out").innerHTML="<div class='check f'><div class='ct'>Could not reach /api/proof — is the backend up?</div></div>";
+            $("#run").disabled=false; $("#run").textContent="Run verification ▶"; return; }
+  $("#score").textContent=d.passed+"/"+d.total;
+  const v=$("#verdict"); v.textContent=d.all_passed?"ALL CHECKS PASSED":"FAILURE";
+  v.className="pill "+(d.all_passed?"ok":"bad");
+  $("#out").innerHTML=d.checks.map(c=>`
+    <div class="check ${c.pass?'p':'f'}">
+      <div class="ct"><span class="mark">${c.pass?'✅':'❌'}</span>${c.name}</div>
+      ${c.detail?`<div class="detail">${esc(c.detail)}</div>`:''}
+      <div class="kv"><b>expected</b><span><pre>${esc(c.expected)}</pre></span>
+        <b>actual</b><span><pre>${esc(c.actual)}</pre></span></div>
+    </div>`).join("");
+  $("#run").disabled=false; $("#run").textContent="Re-run verification ▶";
+}
+$("#run").addEventListener("click",run);
+run();
+</script>
+</body>
+</html>
