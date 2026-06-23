@@ -1,6 +1,14 @@
+.venv
+.venv311
+backend/.venv
+backend/.venv311
 **/.venv
+**/.venv311
 **/venv
 **/__pycache__
 **/*.pyc
 **/.pytest_cache
 *.log
+*.pt
+backend/annotated_*.jpg
+backend/requirements-detect.txt
